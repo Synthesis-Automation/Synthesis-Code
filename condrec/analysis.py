@@ -100,3 +100,48 @@ def analyze_reaction_smiles(rxn_smiles: str) -> Dict:
     }
     return result
 
+
+def format_analysis_summary(result: Dict) -> str:
+    """Render a human-readable analysis summary string.
+
+    Mirrors the CLI output so GUI/CLI share the same formatting.
+    """
+    lines: List[str] = []
+    lines.append("=== Reaction Analysis ===")
+    lines.append(
+        f"Parsed roles: reactants={len(result['reactants'])}, agents={len(result['agents'])}, products={len(result['products'])}"
+    )
+    if result.get("atom_map_present"):
+        lines.append("Atom maps detected in input.")
+
+    for role in ("reactants", "agents", "products"):
+        items = result[role]
+        lines.append("")
+        lines.append(f"[{role}] count={len(items)}")
+        for i, mol in enumerate(items, 1):
+            status = "ok" if mol.get("ok") else "invalid"
+            lines.append(f"  {i}. {mol.get('input_smiles', '')} -> {status}")
+            if mol.get("ok"):
+                lines.append(
+                    (
+                        f"     formula={mol.get('formula','')} MW={mol.get('mw',0):.2f} "
+                        f"heavy={mol.get('heavy_atoms',0)} rings={mol.get('rings',0)} "
+                        f"arom_rings={mol.get('aromatic_rings',0)}"
+                    )
+                )
+            else:
+                lines.append(f"     error={mol.get('error','')}")
+
+    r_counts = result.get("element_counts", {}).get("reactants", {})
+    p_counts = result.get("element_counts", {}).get("products", {})
+    keys = sorted(set(r_counts) | set(p_counts))
+    deltas = {k: int(p_counts.get(k, 0)) - int(r_counts.get(k, 0)) for k in keys}
+    lines.append("")
+    lines.append("[Element count delta] products - reactants (agents excluded):")
+    if not keys:
+        lines.append("  (no elements counted)")
+    else:
+        diffs = ", ".join(f"{k}:{deltas[k]:+d}" for k in keys if deltas[k] != 0)
+        lines.append(f"  {diffs}" if diffs else "  balanced within counted elements")
+
+    return "\n".join(lines)

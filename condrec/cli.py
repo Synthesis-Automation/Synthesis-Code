@@ -1,9 +1,10 @@
 import argparse
+import json
 import sys
 from pathlib import Path
 
 from . import __version__
-from .analysis import analyze_reaction_smiles
+from .analysis import analyze_reaction_smiles, format_analysis_summary
 
 
 def _read_reaction_from_file(path: Path) -> str:
@@ -15,43 +16,7 @@ def _read_reaction_from_file(path: Path) -> str:
 
 
 def _print_analysis(result: dict) -> None:
-    # Compact, human-readable summary
-    print("=== Reaction Analysis ===")
-    print(f"Parsed roles: reactants={len(result['reactants'])}, agents={len(result['agents'])}, products={len(result['products'])}")
-    if result.get("atom_map_present"):
-        print("Atom maps detected in input.")
-
-    for role in ("reactants", "agents", "products"):
-        items = result[role]
-        print(f"\n[{role}] count={len(items)}")
-        for i, mol in enumerate(items, 1):
-            status = "ok" if mol["ok"] else "invalid"
-            print(
-                f"  {i}. {mol['input_smiles']} -> {status}"
-            )
-            if mol["ok"]:
-                print(
-                    f"     formula={mol['formula']} MW={mol['mw']:.2f} heavy={mol['heavy_atoms']} rings={mol['rings']} arom_rings={mol['aromatic_rings']}"
-                )
-            else:
-                print(f"     error={mol['error']}")
-
-    # Simple mass-balance style element accounting (reactants vs products; agents excluded)
-    r_counts = result["element_counts"]["reactants"]
-    p_counts = result["element_counts"]["products"]
-    keys = sorted(set(r_counts) | set(p_counts))
-    deltas = {k: p_counts.get(k, 0) - r_counts.get(k, 0) for k in keys}
-    print("\n[Element count delta] products - reactants (agents excluded):")
-    if not keys:
-        print("  (no elements counted)")
-    else:
-        print(
-            "  "
-            + ", ".join(
-                f"{k}:{deltas[k]:+d}" for k in keys if deltas[k] != 0
-            )
-            or "  balanced within counted elements"
-        )
+    print(format_analysis_summary(result))
 
 
 def main(argv=None):
@@ -62,8 +27,9 @@ def main(argv=None):
     parser.add_argument("command", nargs="?", default="analyze", help="Command to run (analyze)")
     parser.add_argument("--version", action="store_true", help="Print version and exit")
 
-    parser.add_argument("--rxn", type=str, help="Reaction SMILES (reactants>agents>products)")
-    parser.add_argument("--file", type=str, help="Path to file containing a reaction SMILES")
+    parser.add_argument("--rxn", type=str, help="Reaction SMILES (reactants>agents>products) or '-' for stdin")
+    parser.add_argument("--file", type=str, help="Path to file containing a reaction SMILES or '-' for stdin")
+    parser.add_argument("--json", action="store_true", help="Print analysis as JSON")
 
     args = parser.parse_args(argv)
 
@@ -76,10 +42,19 @@ def main(argv=None):
         return 2
 
     rxn_smiles = None
-    if args.rxn:
-        rxn_smiles = args.rxn.strip()
-    elif args.file:
-        rxn_smiles = _read_reaction_from_file(Path(args.file))
+    if args.file:
+        if args.file == "-":
+            rxn_smiles = sys.stdin.read().strip()
+        else:
+            rxn_smiles = _read_reaction_from_file(Path(args.file))
+    elif args.rxn:
+        if args.rxn == "-":
+            rxn_smiles = sys.stdin.read().strip()
+        else:
+            rxn_smiles = args.rxn.strip()
+    elif not sys.stdin.isatty():
+        # Allow piping input without flags
+        rxn_smiles = sys.stdin.read().strip()
 
     if not rxn_smiles:
         print("Provide --rxn 'reactants>agents>products' or --file path", file=sys.stderr)
@@ -94,10 +69,12 @@ def main(argv=None):
         print(f"Failed to analyze reaction: {e}", file=sys.stderr)
         return 1
 
-    _print_analysis(result)
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        _print_analysis(result)
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

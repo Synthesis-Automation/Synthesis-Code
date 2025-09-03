@@ -13,8 +13,13 @@ dependencies = []
 
 [project.scripts]
 condrec = "condrec.cli:main"
+condrec-gui = "condrec.gui:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["condrec*"]
 
+[project.optional-dependencies]
+gui = [
+  "PyQt6>=6.5",
+]

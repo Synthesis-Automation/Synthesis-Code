@@ -38,3 +38,42 @@ python -m condrec analyze --file path/to/reaction.txt
 
 The CLI parses reaction SMILES as `reactants>agents>products`, analyzes each molecule (formula, MW, rings, aromatic rings, heavy atoms) and prints a summary. If RDKit is missing, the tool will print installation hints.
 
+## GUI (PyQt6)
+
+Install GUI extras and launch the app:
+
+```
+pip install -e .[gui]
+condrec-gui
+# or: python -m condrec.gui
+```
+
+UI layout: top pane shows responses; bottom row has an input box for reaction SMILES, a JSON toggle, and buttons for Open, Analyze, Clear.
+
+## Examples
+
+Run built-in examples (after install):
+
+```
+python -m condrec analyze --file examples/sn2.txt
+python -m condrec analyze --file examples/esterification.txt
+python -m condrec analyze --file examples/with_agents.txt
+python -m condrec analyze --file examples/invalid.txt
+```
+
+You can also pipe input or request JSON:
+
+```
+type examples\sn2.txt | python -m condrec analyze --json
+# or on Unix:
+# cat examples/sn2.txt | python -m condrec analyze --json
+```
+
+## Tests
+
+Install dev deps and run pytest:
+
+```
+pip install -r requirements-dev.txt
+pytest -q
+```
